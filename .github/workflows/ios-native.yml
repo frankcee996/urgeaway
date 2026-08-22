@@ -1,0 +1,114 @@
+name: iOS (native Swift) build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-native.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build & test (iOS Simulator, unsigned)
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Show Xcode / Swift versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project from project.yml
+        run: xcodegen generate
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project UrgeAway.xcodeproj \
+            -scheme UrgeAway
+
+      # No GoogleService-Info.plist is committed to the repo (Firebase
+      # config is per-developer / per-environment — see ios/README.md).
+      # AuthService checks for the file at runtime and disables sign-in
+      # gracefully when it's absent, so the app still builds and every
+      # non-account feature still works without it.
+      - name: Find a suitable iOS Simulator
+        id: sim
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j \
+            | python3 -c "
+import json,sys
+data = json.load(sys.stdin)
+for runtime, devices in data['devices'].items():
+    if 'iOS' not in runtime:
+        continue
+    for d in devices:
+        if 'iPhone' in d['name']:
+            print(d['name'])
+            sys.exit(0)
+")
+          echo "device=$DEVICE" >> "$GITHUB_OUTPUT"
+          echo "Using simulator device: $DEVICE"
+
+      - name: Build for iOS Simulator (unsigned)
+        run: |
+          xcodebuild build \
+            -project UrgeAway.xcodeproj \
+            -scheme UrgeAway \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device }}" \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcbeautify || true
+
+      - name: Run unit tests (iOS Simulator, unsigned)
+        run: |
+          xcodebuild test \
+            -project UrgeAway.xcodeproj \
+            -scheme UrgeAway \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcbeautify || true
+
+      - name: Locate built .app
+        id: locate
+        run: |
+          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -type d -name "UrgeAway.app" -path "*Debug-iphonesimulator*" | head -n 1)
+          echo "Found app at: $APP_PATH"
+          echo "app_path=$APP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Zip .app for upload
+        if: steps.locate.outputs.app_path != ''
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent "${{ steps.locate.outputs.app_path }}" "$RUNNER_TEMP/UrgeAway-simulator.zip"
+
+      - name: Upload build artifact
+        if: steps.locate.outputs.app_path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: UrgeAway-iOS-Simulator-build
+          path: ${{ runner.temp }}/UrgeAway-simulator.zip
+          retention-days: 14
+
+      # Signed IPA / TestFlight distribution is intentionally not wired
+      # up here: it requires an Apple Developer Program membership, a
+      # distribution certificate, and a provisioning profile, none of
+      # which exist for this repo. See ios/README.md "Distribution
+      # signing" for exactly what to add and where, when that's ready.
