@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="applock_service_description">Used by UrgeAway\'s Lock In Mode: notices when an app you\'ve locked opens and returns you to the Home screen until the time you set has passed. Does not read what\'s on your screen. You can turn this off any time in Settings \u2192 Accessibility.</string>
+</resources>
