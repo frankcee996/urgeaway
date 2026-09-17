@@ -73,6 +73,7 @@ const Data = (() => {
     CHECKINS: 'checkins', // { id, date, mood } — standalone daily check-ins, not tied to an urge
     REASONS_LAST_VIEWED: 'reasons_last_viewed_date', // date string, for the "review your reason" daily mission
     WALK_DONE_DATES: 'walk_done_dates', // date strings — self-reported "took a short walk" mission, off-app so it can't be auto-detected
+    SUPPORT_USED: 'support_used', // { count } — times Reach Out / Get Support was used, see recordSupportUsed
   };
 
   // Urge Lock duration mapping — intensity determines duration, never a
@@ -264,6 +265,56 @@ const Data = (() => {
       { label: 'Engagement', value: cap(sessionCount, 40) },
       { label: 'Reflection', value: cap(journalCount, 20) },
     ];
+  }
+
+  function getResistanceTiers() {
+    return RESISTANCE_TIERS.map((t) => ({ level: t.level, name: t.name, min: t.min }));
+  }
+
+  /* ---------- Support usage (for the "Support sessions" stat card) ----------
+     Counts times the person actually reached for help — the Reach Out
+     quick-message and the Get Support screen — rather than fabricating a
+     number. See app.js's triggerReachOut()/openSupport(). */
+  function recordSupportUsed() {
+    const rec = Storage.get(KEYS.SUPPORT_USED, { count: 0 });
+    rec.count += 1;
+    Storage.set(KEYS.SUPPORT_USED, rec);
+  }
+  function getSupportUsedCount() {
+    return Storage.get(KEYS.SUPPORT_USED, { count: 0 }).count;
+  }
+
+  /* ---------- Achievements ----------
+     Every achievement is derived live from real stored data — nothing is
+     a separate "unlocked" flag that could drift out of sync with what
+     actually happened. Where a real date is available (the Nth entry that
+     crossed the threshold), it's shown; thresholds built from monotonic
+     counts (session/journal/app-open totals, which only ever grow) so an
+     earned badge can never later un-earn itself the way a live streak
+     count could.
+     "Bounced Back" is deliberately framed as a positive milestone, not a
+     penalty — consistent with how setbacks are treated everywhere else in
+     the app (see addSetback's doc comment). */
+  function getAchievements() {
+    const sessions = getSessions().slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    const journal = getJournalEntries().slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+    const appOpens = getAppOpens();
+    const resisted = sessions.filter((s) => s.fromUrgeMode && (s.outcome === 'better' || s.outcome === 'a_little_better'));
+    const nightResisted = resisted.find((s) => { const h = new Date(s.date).getHours(); return h >= 22 || h < 5; });
+    const setbacks = getSetbacks();
+
+    const defs = [
+      { id: 'first-step', title: 'First Step', desc: 'Completed your first activity.', done: sessions.length >= 1, date: sessions[0] && sessions[0].date },
+      { id: 'reflective', title: 'Reflective', desc: 'Wrote 5 journal entries.', done: journal.length >= 5, date: journal[4] && journal[4].date },
+      { id: 'deep-reflection', title: 'Deep Reflection', desc: 'Wrote 20 journal entries.', done: journal.length >= 20, date: journal[19] && journal[19].date },
+      { id: 'week-strong', title: 'Week Strong', desc: 'Opened UrgeAway on 7 different days.', done: appOpens.totalDays >= 7 },
+      { id: 'month-shown-up', title: 'A Month of Showing Up', desc: 'Opened UrgeAway on 30 different days.', done: appOpens.totalDays >= 30 },
+      { id: 'resilient', title: 'Resilient', desc: 'Made it through 10 urges feeling better.', done: resisted.length >= 10, date: resisted[9] && resisted[9].date },
+      { id: 'night-guardian', title: 'Night Guardian', desc: 'Handled a late-night urge.', done: !!nightResisted, date: nightResisted && nightResisted.date },
+      { id: 'reached-out', title: 'Reached Out', desc: "Used Reach Out or Get Support \u2014 you don't have to do this alone.", done: getSupportUsedCount() >= 1 },
+      { id: 'bounced-back', title: 'Bounced Back', desc: 'Faced a difficult moment and kept going.', done: setbacks.length >= 1, date: setbacks.length ? setbacks[setbacks.length - 1].date : null },
+    ];
+    return defs;
   }
 
   function getStreakProtecting() {
@@ -804,6 +855,10 @@ const Data = (() => {
     getTriggerPatterns,
     getRecoveryTimelineEvents,
     getSmartDailyPlan,
+    getResistanceTiers,
+    recordSupportUsed,
+    getSupportUsedCount,
+    getAchievements,
     isLoginPromptShown,
     setLoginPromptShown,
     isNotifPermissionAsked,

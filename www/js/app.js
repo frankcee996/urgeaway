@@ -209,6 +209,7 @@ const App = (() => {
   }
 
   function openSupport() {
+    Data.recordSupportUsed();
     overlayContainer.innerHTML = '';
     overlayContainer.appendChild(renderSupportScreen());
   }
@@ -279,6 +280,7 @@ const App = (() => {
       goToTab('settings', { highlightReachOut: true });
       return false;
     }
+    Data.recordSupportUsed();
     const message = encodeURIComponent(contact.message || "Having a hard moment right now — could use a distraction.");
     let url;
     if (contact.platform === 'whatsapp') {

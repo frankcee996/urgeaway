@@ -322,6 +322,28 @@ function renderActivitiesTab() {
 }
 
 /* ============================== PROGRESS TAB ============================== */
+function friendlyDistractionLabel(id) {
+  const prefixMap = [
+    ['memory_', 'Memory Replay'],
+    ['future_', 'Future Visualization'],
+    ['imagination_', 'Imagination Challenge'],
+    ['fun_', 'Fun Question'],
+    ['creative_', 'Creative Challenge'],
+    ['mystery_', 'Mystery'],
+    ['mg_name_', 'Name Challenge'],
+    ['mg_assoc_', 'Word Association'],
+    ['mg_odd_', 'Odd One Out'],
+    ['mg_logic_', 'Logic Puzzle'],
+    ['vg_odds_', 'Find the Different One'],
+    ['vg_oddl_', 'Find the Different One'],
+    ['vg_flash_', 'Memory Flash'],
+    ['dream_', 'Build Your Dream'],
+    ['sixty_', '60-Second Challenge'],
+  ];
+  const match = prefixMap.find(([prefix]) => id.startsWith(prefix));
+  return match ? match[1] : id;
+}
+
 function renderProgressTab() {
   const stats = Data.getStats();
   const rl = Data.getResistanceStats();
@@ -403,28 +425,6 @@ function renderProgressTab() {
       </div>
     </div>
   `);
-
-  function friendlyDistractionLabel(id) {
-    const prefixMap = [
-      ['memory_', 'Memory Replay'],
-      ['future_', 'Future Visualization'],
-      ['imagination_', 'Imagination Challenge'],
-      ['fun_', 'Fun Question'],
-      ['creative_', 'Creative Challenge'],
-      ['mystery_', 'Mystery'],
-      ['mg_name_', 'Name Challenge'],
-      ['mg_assoc_', 'Word Association'],
-      ['mg_odd_', 'Odd One Out'],
-      ['mg_logic_', 'Logic Puzzle'],
-      ['vg_odds_', 'Find the Different One'],
-      ['vg_oddl_', 'Find the Different One'],
-      ['vg_flash_', 'Memory Flash'],
-      ['dream_', 'Build Your Dream'],
-      ['sixty_', '60-Second Challenge'],
-    ];
-    const match = prefixMap.find(([prefix]) => id.startsWith(prefix));
-    return match ? match[1] : id;
-  }
 
   function listOrEmpty(container, pairs, emptyText) {
     if (!pairs.length) {

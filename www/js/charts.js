@@ -91,7 +91,24 @@ function renderRadarChart(axes, opts) {
   return wrap;
 }
 
-// Month calendar with a filled dot per day that had real logged activity
+// Compact 7-bar weekly activity chart. counts: array of 7 numbers (oldest
+// to newest), labels: array of 7 short day labels to match.
+function renderWeeklyBarChart(counts, labels) {
+  const max = Math.max(1, ...counts);
+  const wrap = fmt(`<div style="display:flex;align-items:flex-end;gap:8px;height:64px;"></div>`);
+  counts.forEach((c, i) => {
+    const pct = Math.max(4, Math.round((c / max) * 100));
+    const col = fmt(`
+      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;">
+        <div style="width:100%;max-width:22px;height:${pct}%;border-radius:6px;background:${c > 0 ? 'linear-gradient(180deg,var(--cyan),var(--green))' : 'var(--bg-3)'};${c > 0 ? 'box-shadow:0 0 10px rgba(52,224,214,0.35);' : ''}"></div>
+        <div style="font-size:9.5px;color:var(--text-3);font-weight:700;">${labels[i]}</div>
+      </div>
+    `);
+    wrap.appendChild(col);
+  });
+  return wrap;
+}
+
 // (session, journal entry, or check-in) — the "chat-history-style" monthly
 // overview from the reference screenshots, but built from actual app data
 // rather than a separate tracked "streak calendar."
