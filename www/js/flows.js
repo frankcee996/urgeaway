@@ -635,14 +635,17 @@ const TUTORIAL_SLIDES = [
     body: "Add your own reasons, set up someone to reach out to, schedule reminders, and manage your privacy — all grouped by category so it's easy to find.",
   },
 ];
-const TOTAL_ONBOARD_STEPS = 2 + TUTORIAL_SLIDES.length + 1; // welcome + tutorial slides + choose-activities + control
+const TOTAL_ONBOARD_STEPS = 3 + TUTORIAL_SLIDES.length; // welcome + profile info + tutorial slides + choose-activities + control
 
 function renderOnboarding() {
   let step = 0;
   const selected = new Set();
   const activityChoices = ACTIVITIES.map((a) => a.name);
-  const chooseStep = 1 + TUTORIAL_SLIDES.length;
+  const profileStep = 1;
+  const tutorialStart = profileStep + 1;
+  const chooseStep = tutorialStart + TUTORIAL_SLIDES.length;
   const controlStep = chooseStep + 1;
+  let gender = '';
 
   const wrap = fmt(`<div class="onboard"></div>`);
   render();
@@ -661,8 +664,24 @@ function renderOnboarding() {
           <p class="subtitle" style="max-width:280px;">Sometimes you don't need to solve everything. You just need something that helps you get through the moment. Here's a quick look around.</p>
         </div>
       `);
-    } else if (step >= 1 && step < chooseStep) {
-      const slide = TUTORIAL_SLIDES[step - 1];
+    } else if (step === profileStep) {
+      body = fmt(`
+        <div class="onboard-body fade-in">
+          <div style="width:56px;height:56px;border-radius:50%;background:rgba(52,224,214,0.14);display:flex;align-items:center;justify-content:center;color:var(--cyan);">${NavIcons.user}</div>
+          <h1 class="h1" style="font-size:22px;">A little about you</h1>
+          <p class="subtitle" style="max-width:280px;margin-bottom:var(--space-2);">Totally optional \u2014 you can skip this and add it later from your profile.</p>
+          <div style="width:100%;max-width:280px;display:flex;flex-direction:column;gap:10px;">
+            <input type="text" id="ob-first" class="auth-input" placeholder="First name" maxlength="40" style="width:100%;" />
+            <input type="text" id="ob-last" class="auth-input" placeholder="Last name" maxlength="40" style="width:100%;" />
+            <div style="display:flex;gap:8px;justify-content:center;margin-top:4px;">
+              <button class="choice-pill" data-g="male">Male</button>
+              <button class="choice-pill" data-g="female">Female</button>
+            </div>
+          </div>
+        </div>
+      `);
+    } else if (step >= tutorialStart && step < chooseStep) {
+      const slide = TUTORIAL_SLIDES[step - tutorialStart];
       body = fmt(`
         <div class="onboard-body fade-in">
           <div style="width:64px;height:64px;border-radius:50%;background:${slide.tint};display:flex;align-items:center;justify-content:center;color:${slide.color};">${slide.icon}</div>
@@ -690,6 +709,18 @@ function renderOnboarding() {
     wrap.appendChild(dots);
     wrap.appendChild(body);
 
+    if (step === profileStep) {
+      body.querySelector('#ob-first').value = Data.getProfileFirstName();
+      body.querySelector('#ob-last').value = Data.getProfileLastName();
+      body.querySelectorAll('[data-g]').forEach((btn) => {
+        if (btn.getAttribute('data-g') === gender) btn.classList.add('selected');
+        btn.addEventListener('click', () => {
+          gender = gender === btn.getAttribute('data-g') ? '' : btn.getAttribute('data-g');
+          body.querySelectorAll('[data-g]').forEach((b) => b.classList.toggle('selected', b.getAttribute('data-g') === gender));
+        });
+      });
+    }
+
     if (step === chooseStep) {
       const choicesWrap = body.querySelector('#ob-choices');
       activityChoices.forEach((name) => {
@@ -706,11 +737,11 @@ function renderOnboarding() {
 
     const footer = fmt(`<div class="onboard-footer"></div>`);
     if (step < controlStep) {
-      const skipLabel = step >= 1 && step < chooseStep ? 'Skip tutorial' : 'Skip';
+      const skipLabel = step >= tutorialStart && step < chooseStep ? 'Skip tutorial' : 'Skip';
       const skip = fmt(`<button class="btn btn-ghost" style="flex:1;">${skipLabel}</button>`);
       const next = fmt(`<button class="btn btn-primary" style="flex:2;">Continue</button>`);
-      skip.addEventListener('click', finish);
-      next.addEventListener('click', () => { step += 1; render(); });
+      skip.addEventListener('click', () => { if (step === profileStep) saveProfileStep(); finish(); });
+      next.addEventListener('click', () => { if (step === profileStep) saveProfileStep(); step += 1; render(); });
       footer.appendChild(skip);
       footer.appendChild(next);
     } else {
@@ -721,8 +752,22 @@ function renderOnboarding() {
     wrap.appendChild(footer);
   }
 
+  // Called on both Skip and Continue from the profile step — whatever was
+  // typed before tapping either one is saved, same spirit as the rest of
+  // onboarding (nothing here blocks progress either way).
+  function saveProfileStep() {
+    const first = wrap.querySelector('#ob-first') ? wrap.querySelector('#ob-first').value.trim() : '';
+    const last = wrap.querySelector('#ob-last') ? wrap.querySelector('#ob-last').value.trim() : '';
+    if (first) Data.setProfileFirstName(first);
+    if (last) Data.setProfileLastName(last);
+    if (gender) Data.setProfileGender(gender);
+    const combined = [first, last].filter(Boolean).join(' ');
+    if (combined) Data.setProfileName(combined);
+  }
+
   function finish() {
     Data.setOnboarded(Array.from(selected));
+    App.syncProfileToFirestore();
     App.completeOnboarding();
   }
 

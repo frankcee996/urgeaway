@@ -104,7 +104,7 @@ function renderDashboardBody(body) {
   body.appendChild(header);
 
   if (header.querySelector('#dash-signin-link')) {
-    header.querySelector('#dash-signin-link').addEventListener('click', () => App.openAccount());
+    header.querySelector('#dash-signin-link').addEventListener('click', () => App.openAccount(() => App.openUserDashboard()));
   }
 
   header.querySelector('#dash-avatar-edit').addEventListener('click', () => header.querySelector('#dash-avatar-input').click());

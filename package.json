@@ -20,6 +20,7 @@
     "@capacitor/push-notifications": "^6.0.3",
     "@capacitor-firebase/authentication": "^6.3.0",
     "@capacitor-firebase/analytics": "^6.3.0",
+    "@capacitor-firebase/firestore": "^6.3.0",
     "firebase": "^10.14.1",
     "urgeaway-screen-pinning": "file:./capacitor-plugins/screen-pinning",
     "urgeaway-app-lock": "file:./capacitor-plugins/app-lock"

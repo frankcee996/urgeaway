@@ -44,7 +44,7 @@ function maybeAskForUsername(container, onDone) {
   wrap.querySelector('#un-skip').addEventListener('click', onDone);
 }
 
-function renderAccountScreen() {
+function renderAccountScreen(onAuthed) {
   const wrap = fmt(`
     <div class="activity-screen fade-in">
       <div class="activity-header">
@@ -55,7 +55,7 @@ function renderAccountScreen() {
     </div>
   `);
   wrap.querySelector('#account-close').addEventListener('click', () => App.closeOverlay());
-  renderAccountBody(wrap);
+  renderAccountBody(wrap, onAuthed);
   return wrap;
 }
 

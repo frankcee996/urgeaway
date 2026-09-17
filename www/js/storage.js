@@ -74,6 +74,9 @@ const Data = (() => {
     REASONS_LAST_VIEWED: 'reasons_last_viewed_date', // date string, for the "review your reason" daily mission
     WALK_DONE_DATES: 'walk_done_dates', // date strings — self-reported "took a short walk" mission, off-app so it can't be auto-detected
     SUPPORT_USED: 'support_used', // { count } — times Reach Out / Get Support was used, see recordSupportUsed
+    PROFILE_FIRST_NAME: 'profile_first_name',
+    PROFILE_LAST_NAME: 'profile_last_name',
+    PROFILE_GENDER: 'profile_gender', // 'male' | 'female' | '' — asked once at onboarding, never required
   };
 
   // Urge Lock duration mapping — intensity determines duration, never a
@@ -714,6 +717,29 @@ const Data = (() => {
   function setProfileName(name) {
     Storage.set(KEYS.PROFILE_NAME, String(name || '').trim().slice(0, 40));
   }
+  // First/last name and gender, asked once at onboarding (see flows.js).
+  // setProfileName() above stays the single combined display name used
+  // everywhere else in the app (Dashboard, personalization) — these three
+  // exist alongside it specifically so Firestore gets real structured
+  // fields rather than one free-text string.
+  function getProfileFirstName() {
+    return Storage.get(KEYS.PROFILE_FIRST_NAME, '');
+  }
+  function setProfileFirstName(v) {
+    Storage.set(KEYS.PROFILE_FIRST_NAME, String(v || '').trim().slice(0, 40));
+  }
+  function getProfileLastName() {
+    return Storage.get(KEYS.PROFILE_LAST_NAME, '');
+  }
+  function setProfileLastName(v) {
+    Storage.set(KEYS.PROFILE_LAST_NAME, String(v || '').trim().slice(0, 40));
+  }
+  function getProfileGender() {
+    return Storage.get(KEYS.PROFILE_GENDER, '');
+  }
+  function setProfileGender(v) {
+    Storage.set(KEYS.PROFILE_GENDER, v === 'male' || v === 'female' ? v : '');
+  }
   function getProfilePic() {
     return Storage.get(KEYS.PROFILE_PIC, null);
   }
@@ -882,6 +908,12 @@ const Data = (() => {
     setUrgeLockSetupDone,
     getProfileName,
     setProfileName,
+    getProfileFirstName,
+    setProfileFirstName,
+    getProfileLastName,
+    setProfileLastName,
+    getProfileGender,
+    setProfileGender,
     getProfilePic,
     setProfilePic,
     clearProfilePic,

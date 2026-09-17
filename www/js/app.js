@@ -11,6 +11,7 @@ const App = (() => {
   let authInitPromise = null;
   let initSettled = false;
   let pendingNotificationOpen = false;
+  let dashboardRefresh = null;
 
   const shellEl = document.getElementById('app-shell');
   const screenContainer = document.getElementById('screen-container');
@@ -31,7 +32,20 @@ const App = (() => {
     // the auth-state listener) in parallel with the splash animation below,
     // so by the time we decide whether to show the Login Gate we know if
     // someone's already signed in.
-    if (window.Auth) authInitPromise = Auth.init();
+    if (window.Auth) {
+      authInitPromise = Auth.init();
+      // The one and only subscriber to auth-state changes — without this,
+      // nothing in the app ever finds out sign-in/sign-out actually
+      // resolved except by chance (closing and reopening a screen that
+      // happens to read Auth.getCurrentUser() fresh). This is what makes
+      // the Dashboard actually reflect a sign-in the moment it lands,
+      // instead of silently staying on whatever it showed when it was
+      // last opened.
+      Auth.onChange(() => {
+        if (dashboardRefresh) dashboardRefresh();
+        syncProfileToFirestore();
+      });
+    }
     // Same gap for both: a notification that just sat in the tray while the
     // app was closed never reaches the foreground/tap listeners, so ask the
     // OS directly what's currently delivered — on cold launch here, and
@@ -214,15 +228,38 @@ const App = (() => {
     overlayContainer.appendChild(renderSupportScreen());
   }
 
-  function openAccount() {
+  // Best-effort backend sync for the three onboarding profile fields — see
+  // firestore.js's doc comment for exactly what this does and doesn't
+  // send. A no-op for guests (no uid to write to) and a no-op if the
+  // Firestore plugin isn't available (e.g. browser preview).
+  function syncProfileToFirestore() {
+    if (!(window.Auth && Auth.available())) return;
+    const user = Auth.getCurrentUser();
+    if (!user || !window.Firestore || !Firestore.available()) return;
+    Firestore.saveProfile({
+      uid: user.uid,
+      firstName: Data.getProfileFirstName(),
+      lastName: Data.getProfileLastName(),
+      gender: Data.getProfileGender(),
+      email: user.email,
+    });
+  }
+
+  function openAccount(onAuthed) {
     overlayContainer.innerHTML = '';
-    overlayContainer.appendChild(renderAccountScreen());
+    overlayContainer.appendChild(renderAccountScreen(onAuthed));
   }
 
   function openUserDashboard() {
     haptic();
     overlayContainer.innerHTML = '';
-    overlayContainer.appendChild(renderUserDashboard());
+    const dash = renderUserDashboard();
+    overlayContainer.appendChild(dash);
+    // Kept so Auth.onChange (registered in init(), below) can refresh this
+    // exact Dashboard instance in place whenever sign-in/sign-out actually
+    // resolves — rather than relying on the person happening to close and
+    // reopen it afterward to see a fresh render.
+    dashboardRefresh = () => { if (overlayContainer.contains(dash)) renderDashboardBody(dash.querySelector('#dash-body')); };
   }
 
   function openLockInMode() {
@@ -253,6 +290,7 @@ const App = (() => {
 
   function closeOverlay() {
     overlayContainer.innerHTML = '';
+    dashboardRefresh = null;
     // reflect any new data (streaks, sessions) on the visible tab
     renderTab();
   }
@@ -307,6 +345,7 @@ const App = (() => {
     launchUrgeLock,
     openSupport,
     openAccount,
+    syncProfileToFirestore,
     openUserDashboard,
     openLockInMode,
     openRecoveryTimeline,

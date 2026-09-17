@@ -45,6 +45,7 @@ jobs:
           npx esbuild www/js/notifications-entry.js --bundle --outfile=www/js/notifications-bundle.js --format=iife
           npx esbuild www/js/push-entry.js --bundle --outfile=www/js/push-bundle.js --format=iife
           npx esbuild www/js/auth-entry.js --bundle --outfile=www/js/auth-bundle.js --format=iife
+          npx esbuild www/js/firestore-entry.js --bundle --outfile=www/js/firestore-bundle.js --format=iife
           npx esbuild www/js/analytics-entry.js --bundle --outfile=www/js/analytics-bundle.js --format=iife
           npx esbuild www/js/screenpinning-entry.js --bundle --outfile=www/js/screenpinning-bundle.js --format=iife
           npx esbuild www/js/applock-entry.js --bundle --outfile=www/js/applock-bundle.js --format=iife
