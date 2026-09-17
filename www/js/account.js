@@ -1,16 +1,13 @@
 /* ==========================================================================
-   Account screen — optional Firebase sign-in, opened from Settings (and
-   from the first-launch Login Gate in flows.js, which mounts renderAccountBody
-   into its own wrapper). Signing in is never required to use UrgeAway —
-   every core feature already works with zero account — so once signed in,
-   this doubles as a light account "dashboard": who you're signed in as,
-   and a sign-out control. Matches the reference mockup's layout, with the
-   phone-number sign-in option intentionally left out (email + Google only).
+   Account screen — optional Firebase email sign-in, opened from Settings
+   (and from the first-launch Login Gate in flows.js, which mounts
+   renderAccountBody into its own wrapper). Signing in is never required to
+   use UrgeAway — every core feature already works with zero account — so
+   once signed in, this doubles as a light account "dashboard": who you're
+   signed in as, and a sign-out control. Email/password only — no Google
+   or phone-number sign-in.
    ========================================================================== */
 
-// Google Sign-In stays Android-only — this app has no iOS Google auth setup
-// (no URL scheme / reversed client ID / GoogleService-Info.plist entry for
-// it), so it's left out entirely on iOS rather than shown and failing.
 const AuthIcons = {
   mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>',
   lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="2"/><path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/></svg>',
@@ -140,21 +137,6 @@ function renderAccountBody(wrap, onAuthed) {
     `);
     body.appendChild(form);
 
-    // Google Sign-In is Android-only in this app — left out entirely on iOS
-    // rather than shown and failing, since there's no Google auth setup for
-    // that platform.
-    let googleBtn = null;
-    if (!isIOS()) {
-      body.appendChild(fmt(`<div class="auth-divider"><div class="line"></div>or continue with<div class="line"></div></div>`));
-      googleBtn = fmt(`
-        <button class="btn btn-secondary btn-block" id="ac-google" style="display:flex;align-items:center;justify-content:center;gap:10px;">
-          <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
-          Continue with Google
-        </button>
-      `);
-      body.appendChild(googleBtn);
-    }
-
     body.appendChild(fmt(`
       <div class="auth-switch">
         ${isSignup ? 'Already have an account?' : "Don\u2019t have an account?"} <button type="button" id="ac-switch">${isSignup ? 'Log In' : 'Sign Up'}</button>
@@ -200,19 +182,6 @@ function renderAccountBody(wrap, onAuthed) {
         else showError(result.message || 'Could not send reset email.');
       });
     }
-
-    googleBtn && googleBtn.addEventListener('click', async () => {
-      const result = await Auth.signInGoogle();
-      if (result.ok) {
-        App.toast('Signed in with Google');
-        const finish = () => { if (onAuthed) onAuthed(); else renderAccountBody(wrap); };
-        // Google doesn't collect a display name we control, so ask the same
-        // way we would after an email sign-up, but only if one isn't set yet.
-        maybeAskForUsername(body, finish);
-      } else {
-        App.toast(result.message || 'Google sign-in failed.');
-      }
-    });
 
     body.querySelector('#ac-switch').addEventListener('click', () => {
       mode = isSignup ? 'login' : 'signup';

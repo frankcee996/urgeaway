@@ -329,7 +329,7 @@ function renderProgressTab() {
   const avgAxis = Math.round(axes.reduce((sum, a) => sum + a.value, 0) / axes.length);
   const wrap = fmt(`
     <div class="screen">
-      <div class="screen-fixed">
+      <div class="screen-scroll">
         <div class="topbar" style="padding:var(--space-2) 0 0;">
           <h1 class="h1" style="font-size:24px;">Progress</h1>
           <p class="subtitle" style="font-size:13px;">No pressure here — just a record of showing up.</p>
@@ -386,15 +386,17 @@ function renderProgressTab() {
           <span style="color:var(--text-2);">${NavIcons.chevronRight}</span>
         </button>
 
-        <div style="flex:1;"></div>
+        <p class="section-title">History</p>
+        <div id="history-calendar" class="card"></div>
 
+        <p class="section-title">Most used</p>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
           <div>
-            <p class="section-title" style="margin-top:0;">Most used</p>
+            <div style="color:var(--text-2);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;margin-bottom:6px;">Most used</div>
             <div id="most-used" class="card" style="padding:var(--space-2) var(--space-3);"></div>
           </div>
           <div>
-            <p class="section-title" style="margin-top:0;">You said helped</p>
+            <div style="color:var(--text-2);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;margin-bottom:6px;">You said helped</div>
             <div id="most-helpful" class="card" style="padding:var(--space-2) var(--space-3);"></div>
           </div>
         </div>
@@ -445,6 +447,7 @@ function renderProgressTab() {
   listOrEmpty(wrap.querySelector('#most-helpful'), stats.mostHelpful, 'Rate activities to see this.');
 
   wrap.querySelector('#btn-view-timeline').addEventListener('click', () => App.openRecoveryTimeline());
+  renderHistoryCalendar(wrap.querySelector('#history-calendar'));
 
   // Patterns card: only appears once there's enough real data to say
   // something honest — see getTriggerPatterns()'s own sample-size gating.
