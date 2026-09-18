@@ -341,10 +341,7 @@ function renderUrgeMode() {
       if (lockDurationSec) {
         showUrgeLockConfirm(intensity, trigger);
       } else {
-        // Guided breathing/grounding runs first, then hands off to the
-        // normal distraction loop — see App.launchActivity's meta.then
-        // handling in renderActivityRunner.
-        App.launchActivity(getActivityById('breathing'), { fromUrgeMode: true, intensity, trigger, thenDistract: true });
+        App.launchUrgeRescue({ intensity, trigger });
       }
     });
 
@@ -353,9 +350,10 @@ function renderUrgeMode() {
     function showUrgeLockConfirm(intensity, trigger) {
       stage.innerHTML = '';
       stage.appendChild(UrgeLock.renderConfirm(intensity, trigger, () => {
-        // Cancel: fall back to the normal distraction loop, same as if
-        // Urge Lock had never been offered.
-        App.launchDistractionLoop({ intensity, trigger });
+        // Cancel: fall back to the same fixed rescue sequence used by the
+        // default (intensity 1-6) path, rather than Urge Lock never having
+        // been offered.
+        App.launchUrgeRescue({ intensity, trigger });
       }));
     }
   }
@@ -367,6 +365,129 @@ function renderUrgeMode() {
 /* Self-contained: runs a random distraction, shows a 3-option check-in,
    and either finishes or immediately runs another one — per spec, "still
    having the urge" never routes back to Home. */
+/* ---------------- Urge Rescue Sequence ----------------
+   The fixed, ordered version of the distraction loop used specifically
+   from the main "I HAVE AN URGE" flow (intensity 1-6): Breathing, then
+   three specific mini-games in a set order, then exactly one "how are you
+   feeling" check at the very end — not after every stage, the way the
+   general distraction loop works.
+
+   Deliberately no visible timer/countdown anywhere in this screen. The
+   6-minute floor is enforced by quietly checking elapsed time once the
+   base sequence ends and, if it's come in short, continuing with a couple
+   more rounds before ever showing the outcome screen — nothing on screen
+   ever announces this is happening. */
+function renderUrgeRescueRunner(meta) {
+  meta = meta || {};
+  const MIN_DURATION_MS = 6 * 60 * 1000;
+  const sequenceStartedAt = Date.now();
+
+  const baseQueue = [
+    { id: 'breathing', run: (c, done) => runBreathing(c, done) },
+    { id: 'gridmemory', run: (c, done) => runGridMemory(c, done, { rounds: 6, hideProgress: true }) },
+    { id: 'movingtarget', run: (c, done) => runMovingTarget(c, done, { totalTaps: 30, hideProgress: true }) },
+    { id: 'colortap', run: (c, done) => runColorTap(c, done, { rounds: 20, hideProgress: true }) },
+  ];
+  // Only ever appended if the base sequence finishes under the floor —
+  // see runNext() below.
+  const topUpQueue = [
+    { id: 'movingtarget', run: (c, done) => runMovingTarget(c, done, { totalTaps: 16, hideProgress: true }) },
+    { id: 'colortap', run: (c, done) => runColorTap(c, done, { rounds: 10, hideProgress: true }) },
+    { id: 'gridmemory', run: (c, done) => runGridMemory(c, done, { rounds: 3, hideProgress: true }) },
+  ];
+  let queue = baseQueue.slice();
+  let qi = 0;
+
+  const wrap = fmt(`
+    <div class="activity-screen focus-mode fade-in">
+      <div class="activity-header">
+        <div class="title">Working through it</div>
+        <button class="icon-btn" id="ur-close" aria-label="Close">\u2715</button>
+      </div>
+      <div class="activity-body" id="ur-body"></div>
+    </div>
+  `);
+  const body = wrap.querySelector('#ur-body');
+  let instance = null;
+
+  wrap.querySelector('#ur-close').addEventListener('click', () => {
+    if (instance && instance.onExit) instance.onExit();
+    App.closeOverlay();
+  });
+
+  function runNext() {
+    if (qi >= queue.length) {
+      if (Date.now() - sequenceStartedAt < MIN_DURATION_MS) {
+        queue = queue.concat(topUpQueue);
+      } else {
+        showOutcome();
+        return;
+      }
+    }
+    const step = queue[qi];
+    qi += 1;
+    instance = step.run(body, runNext) || {};
+  }
+  runNext();
+
+  function showOutcome() {
+    body.innerHTML = '';
+    const outcomeWrap = fmt(`
+      <div class="fade-in" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:18px;">
+        <div class="prompt-text">How are you feeling now?</div>
+        <div class="outcome-grid" style="max-width:340px;grid-template-columns:1fr;">
+          <button class="outcome-btn" data-v="better">Better</button>
+          <button class="outcome-btn" data-v="a_little_better">A little better</button>
+          <button class="outcome-btn" data-v="still_having_urge">Still having the urge</button>
+        </div>
+        <button class="btn-ghost btn" id="ur-reach-out" style="font-size:12.5px;border-color:rgba(52,224,214,0.24);color:var(--focus-cyan);">Reach out to someone instead</button>
+        <button class="btn-ghost btn" id="ur-setback" style="font-size:12px;color:var(--focus-text-2);">It happened \u2014 I acted on the urge</button>
+      </div>
+    `);
+    body.appendChild(outcomeWrap);
+    let intensityAfter = null;
+    renderIntensityRecheck(outcomeWrap, meta.intensity, (v) => { intensityAfter = v; });
+
+    outcomeWrap.querySelector('#ur-reach-out').addEventListener('click', () => App.triggerReachOut());
+    outcomeWrap.querySelector('#ur-setback').addEventListener('click', () => {
+      body.innerHTML = '';
+      body.appendChild(renderSetbackReflection(meta.intensity, (restart) => {
+        if (restart) { App.closeOverlay(); App.openUrgeMode(); }
+        else { App.closeOverlay(); }
+      }));
+    });
+
+    outcomeWrap.querySelectorAll('.outcome-btn').forEach((b) => {
+      b.addEventListener('click', () => {
+        const outcome = b.getAttribute('data-v');
+        const durationSec = Math.round((Date.now() - sequenceStartedAt) / 1000);
+        Data.addSession({
+          activityId: 'urge-rescue-sequence',
+          category: 'urge-rescue',
+          durationSec,
+          outcome: outcome === 'still_having_urge' ? 'still_need_help' : outcome,
+          fromUrgeMode: true,
+          intensity: meta.intensity || null,
+          intensityAfter: intensityAfter != null ? intensityAfter : undefined,
+          trigger: meta.trigger || undefined,
+        });
+        if (window.Analytics) Analytics.logUrgeSessionCompleted();
+        if (outcome === 'still_having_urge') {
+          App.toast('Okay \u2014 let\u2019s try a bit more.');
+          queue = queue.concat(topUpQueue);
+          runNext();
+        } else {
+          App.closeOverlay();
+          App.toast('Logged. Nice work showing up for yourself.');
+        }
+      });
+    });
+  }
+
+  return wrap;
+}
+
+
 function renderDistractionRunner(meta) {
   meta = meta || {};
   const wrap = fmt(`

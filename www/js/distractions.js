@@ -712,7 +712,8 @@ function runPhysicalReset(container, onFinish) {
 /* Used by several games below (Quick Math, Missing Number, Pattern Breaker,
    Color Tap) — each round is generated fresh by getRound(), so the numbers/
    colors/patterns are different every time this runs. */
-function runChoiceRounds(getRound, roundCount, container, onFinish) {
+function runChoiceRounds(getRound, roundCount, container, onFinish, opts) {
+  opts = opts || {};
   let i = 0;
   function render() {
     const round = getRound();
@@ -720,7 +721,7 @@ function runChoiceRounds(getRound, roundCount, container, onFinish) {
     const cols = round.cols || round.options.length;
     const wrap = dmk(`
       <div class="fade-in" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:18px;">
-        <div class="timer-pill">${i + 1} of ${roundCount}</div>
+        ${opts.hideProgress ? '' : `<div class="timer-pill">${i + 1} of ${roundCount}</div>`}
         ${round.extraHtml || ''}
         <div class="prompt-text">${escapeHtml(round.prompt)}</div>
         <div class="option-grid" id="cr-grid" style="width:100%;max-width:300px;grid-template-columns:repeat(${cols},1fr);"></div>
@@ -859,7 +860,8 @@ const COLOR_WORDS = [
   { name: 'YELLOW', color: '#eab308' },
   { name: 'PURPLE', color: '#a855f7' },
 ];
-function runColorTap(container, onFinish) {
+function runColorTap(container, onFinish, opts) {
+  opts = opts || {};
   return runChoiceRounds(() => {
     const word = pick(COLOR_WORDS);
     let displayColor = pick(COLOR_WORDS);
@@ -875,7 +877,7 @@ function runColorTap(container, onFinish) {
       options: options.map((o) => o.name),
       correctIndex: options.findIndex((o) => o.name === displayColor.name),
     };
-  }, 4, container, onFinish);
+  }, opts.rounds || 4, container, onFinish, { hideProgress: opts.hideProgress });
 }
 
 /* ------------------------- Number Hunt ------------------------- */
@@ -969,51 +971,63 @@ function runWhatChanged(container, onFinish) {
 }
 
 /* ------------------------- Remember the Grid ------------------------- */
-function runGridMemory(container, onFinish) {
-  const size = 9;
-  const litCount = 3;
-  const litIndexes = new Set();
-  while (litIndexes.size < litCount) litIndexes.add(Math.floor(Math.random() * size));
-  container.innerHTML = '';
-  const wrap = dmk(`
-    <div class="fade-in" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:18px;">
-      <div class="prompt-text">Remember the lit squares</div>
-      <div class="game-grid" id="gm-grid" style="grid-template-columns:repeat(3,1fr);max-width:220px;"></div>
-    </div>
-  `);
-  container.appendChild(wrap);
-  const grid = wrap.querySelector('#gm-grid');
-  for (let i = 0; i < size; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'tap-target';
-    cell.style.cssText = `background:${litIndexes.has(i) ? 'rgba(52,224,214,0.55)' : '#182339'};border:1px solid rgba(148,178,210,0.14);`;
-    grid.appendChild(cell);
-  }
-  const flashTimer = setTimeout(() => {
+function runGridMemory(container, onFinish, opts) {
+  opts = opts || {};
+  const rounds = opts.rounds || 1;
+  let roundIndex = 0;
+  function playRound() {
+    const size = 9;
+    const litCount = 3;
+    const litIndexes = new Set();
+    while (litIndexes.size < litCount) litIndexes.add(Math.floor(Math.random() * size));
     container.innerHTML = '';
-    const picked = new Set();
-    const wrap2 = dmk(`
+    const wrap = dmk(`
       <div class="fade-in" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:18px;">
-        <div class="prompt-text">Tap the same squares</div>
-        <div class="game-grid" id="gm-grid2" style="grid-template-columns:repeat(3,1fr);max-width:220px;"></div>
-        <button class="btn btn-primary" id="gm-check" style="max-width:200px;">Check</button>
+        <div class="prompt-text">Remember the lit squares</div>
+        <div class="game-grid" id="gm-grid" style="grid-template-columns:repeat(3,1fr);max-width:220px;"></div>
       </div>
     `);
-    container.appendChild(wrap2);
-    const grid2 = wrap2.querySelector('#gm-grid2');
+    container.appendChild(wrap);
+    const grid = wrap.querySelector('#gm-grid');
     for (let i = 0; i < size; i++) {
-      const cell = document.createElement('button');
+      const cell = document.createElement('div');
       cell.className = 'tap-target';
-      cell.style.cssText = 'background:#182339;border:1px solid rgba(148,178,210,0.14);';
-      cell.addEventListener('click', () => {
-        if (picked.has(i)) { picked.delete(i); cell.style.background = '#182339'; }
-        else { picked.add(i); cell.style.background = 'rgba(52,224,214,0.35)'; }
-      });
-      grid2.appendChild(cell);
+      cell.style.cssText = `background:${litIndexes.has(i) ? 'rgba(52,224,214,0.55)' : '#182339'};border:1px solid rgba(148,178,210,0.14);`;
+      grid.appendChild(cell);
     }
-    wrap2.querySelector('#gm-check').addEventListener('click', onFinish);
-  }, 1800);
-  return { onExit: () => clearTimeout(flashTimer) };
+    const flashTimer = setTimeout(() => {
+      container.innerHTML = '';
+      const picked = new Set();
+      const wrap2 = dmk(`
+        <div class="fade-in" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:18px;">
+          <div class="prompt-text">Tap the same squares</div>
+          <div class="game-grid" id="gm-grid2" style="grid-template-columns:repeat(3,1fr);max-width:220px;"></div>
+          <button class="btn btn-primary" id="gm-check" style="max-width:200px;">Check</button>
+        </div>
+      `);
+      container.appendChild(wrap2);
+      const grid2 = wrap2.querySelector('#gm-grid2');
+      for (let i = 0; i < size; i++) {
+        const cell = document.createElement('button');
+        cell.className = 'tap-target';
+        cell.style.cssText = 'background:#182339;border:1px solid rgba(148,178,210,0.14);';
+        cell.addEventListener('click', () => {
+          if (picked.has(i)) { picked.delete(i); cell.style.background = '#182339'; }
+          else { picked.add(i); cell.style.background = 'rgba(52,224,214,0.35)'; }
+        });
+        grid2.appendChild(cell);
+      }
+      wrap2.querySelector('#gm-check').addEventListener('click', () => {
+        roundIndex += 1;
+        if (roundIndex >= rounds) onFinish();
+        else playRound();
+      });
+    }, 1800);
+    activeExitFn = () => clearTimeout(flashTimer);
+  }
+  let activeExitFn = () => {};
+  playRound();
+  return { onExit: () => activeExitFn() };
 }
 
 /* ------------------------- Remember the Sequence (colors) ------------------------- */
@@ -1090,14 +1104,15 @@ function runColorSequence(container, onFinish) {
 }
 
 /* ------------------------- Moving Target ------------------------- */
-function runMovingTarget(container, onFinish) {
-  const totalTaps = 6;
+function runMovingTarget(container, onFinish, opts) {
+  opts = opts || {};
+  const totalTaps = opts.totalTaps || 6;
   let taps = 0;
   container.innerHTML = '';
   const wrap = dmk(`
     <div class="fade-in" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:14px;">
       <div class="prompt-text">Tap the target — it won't stay still</div>
-      <div class="timer-pill" id="mt-count">0 / ${totalTaps}</div>
+      ${opts.hideProgress ? '' : `<div class="timer-pill" id="mt-count">0 / ${totalTaps}</div>`}
       <div id="mt-field" style="position:relative;width:100%;max-width:300px;height:220px;background:#182339;border:1px solid rgba(148,178,210,0.14);border-radius:var(--radius-m);overflow:hidden;"></div>
     </div>
   `);
@@ -1114,7 +1129,8 @@ function runMovingTarget(container, onFinish) {
   }
   target.addEventListener('click', () => {
     taps += 1;
-    wrap.querySelector('#mt-count').textContent = `${taps} / ${totalTaps}`;
+    const countEl = wrap.querySelector('#mt-count');
+    if (countEl) countEl.textContent = `${taps} / ${totalTaps}`;
     if (taps >= totalTaps) { onFinish(); return; }
     place();
   });

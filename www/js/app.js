@@ -216,6 +216,12 @@ const App = (() => {
     overlayContainer.appendChild(renderDistractionRunner(meta || {}));
   }
 
+  function launchUrgeRescue(meta) {
+    haptic();
+    overlayContainer.innerHTML = '';
+    overlayContainer.appendChild(renderUrgeRescueRunner(meta || {}));
+  }
+
   function launchUrgeLock(meta) {
     haptic();
     overlayContainer.innerHTML = '';
@@ -342,6 +348,7 @@ const App = (() => {
     openUrgeMode,
     launchActivity,
     launchDistractionLoop,
+    launchUrgeRescue,
     launchUrgeLock,
     openSupport,
     openAccount,
