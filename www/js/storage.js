@@ -77,6 +77,7 @@ const Data = (() => {
     PROFILE_FIRST_NAME: 'profile_first_name',
     PROFILE_LAST_NAME: 'profile_last_name',
     PROFILE_GENDER: 'profile_gender', // 'male' | 'female' | '' — asked once at onboarding, never required
+    JOURNAL_DRAFT: 'journal_draft', // { prompt, text, mood } — autosaved in-progress entry, see getJournalDraft
   };
 
   // Urge Lock duration mapping — intensity determines duration, never a
@@ -202,16 +203,88 @@ const Data = (() => {
   function getJournalEntries() {
     return Storage.get(KEYS.JOURNAL, []).sort((a, b) => new Date(b.date) - new Date(a.date));
   }
-  function addJournalEntry(prompt, text) {
+  function addJournalEntry(prompt, text, mood) {
     const entries = Storage.get(KEYS.JOURNAL, []);
-    const entry = { id: 'jrnl_' + Date.now(), date: new Date().toISOString(), prompt, text };
+    const entry = { id: 'jrnl_' + Date.now(), date: new Date().toISOString(), prompt, text, mood: mood || null };
     entries.push(entry);
     Storage.set(KEYS.JOURNAL, entries);
     return entry;
   }
+  function updateJournalEntry(id, changes) {
+    const entries = Storage.get(KEYS.JOURNAL, []);
+    const idx = entries.findIndex((e) => e.id === id);
+    if (idx === -1) return null;
+    entries[idx] = Object.assign({}, entries[idx], changes, { editedAt: new Date().toISOString() });
+    Storage.set(KEYS.JOURNAL, entries);
+    return entries[idx];
+  }
   function deleteJournalEntry(id) {
     const entries = Storage.get(KEYS.JOURNAL, []).filter((e) => e.id !== id);
     Storage.set(KEYS.JOURNAL, entries);
+  }
+
+  // Autosave for an in-progress, not-yet-saved entry — so closing the app
+  // (or just navigating to another tab) mid-thought doesn't lose it. Wiped
+  // the moment a real entry is saved from it.
+  function getJournalDraft() {
+    return Storage.get(KEYS.JOURNAL_DRAFT, null);
+  }
+  function setJournalDraft(draft) {
+    Storage.set(KEYS.JOURNAL_DRAFT, draft);
+  }
+  function clearJournalDraft() {
+    Storage.remove(KEYS.JOURNAL_DRAFT);
+  }
+
+  // Consecutive days ending today or yesterday with at least one entry —
+  // purely informational, never shown as something that "breaks" (per the
+  // Journal spec: missing a day should never feel like a penalty).
+  function getJournalWritingStreak() {
+    const days = new Set(getJournalEntries().map((e) => new Date(e.date).toDateString()));
+    let count = 0;
+    let cursor = new Date();
+    if (!days.has(cursor.toDateString())) cursor.setDate(cursor.getDate() - 1); // allow "yesterday" to still count as current
+    while (days.has(cursor.toDateString())) {
+      count += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+  }
+
+  // Light, honest, keyword/mood-frequency observations about the person's
+  // own writing — not AI analysis, nothing leaves the device, and nothing
+  // here is a diagnosis or a guess about *why* someone feels something.
+  // Gated by sample size so a couple of entries never gets over-read as a
+  // pattern. See the Journal spec's own privacy rule for this feature.
+  const JOURNAL_INSIGHT_WORDS = ['stress', 'stressed', 'anxious', 'anxiety', 'tired', 'lonely', 'alone', 'angry', 'sad', 'overwhelmed', 'grateful', 'proud', 'goal', 'goals', 'trigger', 'triggered', 'help', 'helped', 'better', 'calm'];
+  function getJournalInsights() {
+    const entries = getJournalEntries();
+    if (entries.length < 3) return [];
+    const insights = [];
+    const wordCounts = {};
+    entries.forEach((e) => {
+      const lower = (e.text || '').toLowerCase();
+      JOURNAL_INSIGHT_WORDS.forEach((w) => {
+        if (lower.includes(w)) wordCounts[w] = (wordCounts[w] || 0) + 1;
+      });
+    });
+    const [topWord, topCount] = Object.entries(wordCounts).sort((a, b) => b[1] - a[1])[0] || [];
+    if (topWord && topCount >= 3) {
+      insights.push(`You've mentioned "${topWord}" in ${topCount} of your last ${entries.length} entries.`);
+    }
+    const moods = entries.filter((e) => e.mood).map((e) => e.mood);
+    if (moods.length >= 3) {
+      const moodCounts = {};
+      moods.forEach((m) => { moodCounts[m] = (moodCounts[m] || 0) + 1; });
+      const [topMood, topMoodCount] = Object.entries(moodCounts).sort((a, b) => b[1] - a[1])[0];
+      if (topMoodCount / moods.length >= 0.4) {
+        insights.push(`"${topMood}" has been your most-picked mood while journaling lately.`);
+      }
+    }
+    if (entries.length >= 10) {
+      insights.push(`You've made time to write ${entries.length} entries \u2014 that consistency matters.`);
+    }
+    return insights;
   }
 
   function isLoginPromptShown() {
@@ -856,7 +929,13 @@ const Data = (() => {
     getAppOpens,
     getJournalEntries,
     addJournalEntry,
+    updateJournalEntry,
     deleteJournalEntry,
+    getJournalDraft,
+    setJournalDraft,
+    clearJournalDraft,
+    getJournalWritingStreak,
+    getJournalInsights,
     getReminders,
     addReminder,
     updateReminder,

@@ -8,6 +8,7 @@ const NavIcons = {
   activities: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
   progress: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15v3"/><path d="M12 10v8"/><path d="M17 6v12"/></svg>',
   journal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
   settings: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>',
   distract: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
   calm: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.6a2 2 0 1 1 1.4 3.4H2"/><path d="M13.2 19.4a2 2 0 1 0 1.4-3.4H2"/><path d="M17.4 8a2.5 2.5 0 1 1 1.6 4.4H2"/></svg>',
@@ -473,89 +474,344 @@ function renderProgressTab() {
 }
 
 /* ============================== JOURNAL TAB ============================== */
+const JOURNAL_PROMPTS = [
+  'What triggered this moment?',
+  'What am I feeling right now?',
+  'What do I actually need?',
+  'What would future me want me to do next?',
+  'What helped last time?',
+  'What did I learn today?',
+  'What am I grateful for?',
+  'What can I do differently next time?',
+];
+const JOURNAL_MOODS = [
+  { v: 'calm', label: 'Calm', emoji: '\ud83d\ude0c' },
+  { v: 'good', label: 'Good', emoji: '\ud83d\ude0a' },
+  { v: 'stressed', label: 'Stressed', emoji: '\ud83d\ude23' },
+  { v: 'sad', label: 'Sad', emoji: '\ud83d\ude22' },
+  { v: 'angry', label: 'Angry', emoji: '\ud83d\ude20' },
+  { v: 'restless', label: 'Restless', emoji: '\ud83d\ude2b' },
+  { v: 'overwhelmed', label: 'Overwhelmed', emoji: '\ud83d\ude35\u200d\ud83d\udcab' },
+  { v: 'other', label: 'Other', emoji: '\u2022' },
+];
+function journalMoodMeta(v) { return JOURNAL_MOODS.find((m) => m.v === v); }
+
+function journalGroupLabel(date) {
+  const d = new Date(date);
+  const today = new Date();
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
 function renderJournalTab(options) {
   const opts = options || {};
-  const entries = Data.getJournalEntries();
-  const prompts = [
-    'What triggered this moment?',
-    'What am I feeling right now?',
-    'What do I actually need?',
-    'What would future me want me to do next?',
-    'What helped last time?',
-  ];
+  let searchQuery = '';
+  let filterRange = 'all'; // all | today | week | month
+  let filterMood = null;
 
   const wrap = fmt(`
     <div class="screen">
-      <div class="screen-fixed">
-        <div class="topbar" style="padding:var(--space-2) 0 0;display:flex;align-items:flex-start;justify-content:space-between;">
-          <div>
+      <div class="screen-scroll">
+        <div class="topbar" style="padding:var(--space-2) 0 0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:var(--cyan);width:22px;height:22px;flex-shrink:0;">${NavIcons.journal}</span>
             <h1 class="h1" style="font-size:24px;">Journal</h1>
-            <p class="subtitle" style="font-size:13px;">Private. Stored only on this device.</p>
+          </div>
+          <p class="subtitle" style="font-size:13px;margin-top:2px;">A moment to pause, reflect, and understand yourself.</p>
+          <div style="display:flex;align-items:center;gap:5px;margin-top:6px;color:var(--text-3);font-size:11px;">
+            <span style="width:12px;height:12px;">${NavIcons.lock}</span> Private \u00b7 Stored only on this device
           </div>
         </div>
 
-        <div id="journal-compose" style="margin-top:var(--space-3);"></div>
+        <div id="journal-compose" class="card-glass" style="margin-top:var(--space-4);padding:var(--space-4);"></div>
 
-        <p class="section-title">Past entries</p>
-        <div id="journal-entries" class="inner-scroll"></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:var(--space-4);">
+          <p class="section-title" style="margin:0;">Past entries</p>
+          <div id="journal-meta" style="color:var(--text-3);font-size:10.5px;"></div>
+        </div>
+
+        <div id="journal-search-bar" style="margin-top:var(--space-2);"></div>
+        <div id="journal-entries" style="margin-top:var(--space-2);"></div>
       </div>
     </div>
   `);
 
+  /* ---------------- Composer ---------------- */
   const compose = wrap.querySelector('#journal-compose');
-  function showComposer(prefillPrompt) {
+  function showComposer() {
     compose.innerHTML = '';
+    const draft = Data.getJournalDraft() || { prompt: null, text: '', mood: null };
+    let selectedPrompt = draft.prompt;
+    let selectedMood = draft.mood;
+
     const box = fmt(`
-      <div class="card" style="padding:var(--space-3);">
-        <div id="jc-prompts"></div>
-        <textarea class="journal-input" id="jc-text" placeholder="Write whatever's true right now..." style="margin-top:var(--space-2);min-height:56px;font-size:13.5px;padding:var(--space-3);"></textarea>
-        <button class="btn btn-primary btn-block" id="jc-save" style="margin-top:var(--space-2);padding:12px 20px;font-size:14.5px;">Save entry</button>
+      <div>
+        <div id="jc-prompts" style="display:flex;flex-wrap:wrap;"></div>
+        <textarea class="journal-input" id="jc-text" placeholder="Put whatever's true right now..." style="margin-top:var(--space-2);min-height:64px;font-size:13.5px;padding:var(--space-3);width:100%;resize:none;overflow:hidden;">${escapeHtml(draft.text || '')}</textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+          <div id="jc-status" style="color:var(--text-3);font-size:10.5px;"></div>
+          <div id="jc-wordcount" style="color:var(--text-3);font-size:10.5px;"></div>
+        </div>
+        <div style="margin-top:var(--space-3);">
+          <div style="color:var(--text-2);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.02em;margin-bottom:6px;">How are you feeling? (optional)</div>
+          <div id="jc-moods" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+        </div>
+        <button class="btn btn-primary btn-block" id="jc-save" style="margin-top:var(--space-3);padding:12px 20px;font-size:14.5px;">Save entry</button>
       </div>
     `);
     compose.appendChild(box);
-    let selectedPrompt = prefillPrompt || null;
+
+    const textarea = box.querySelector('#jc-text');
+    const statusEl = box.querySelector('#jc-status');
+    const wordCountEl = box.querySelector('#jc-wordcount');
+
+    function autoGrow() {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.max(64, textarea.scrollHeight) + 'px';
+    }
+    function updateWordCount() {
+      const words = textarea.value.trim().split(/\s+/).filter(Boolean).length;
+      wordCountEl.textContent = words ? `${words} word${words === 1 ? '' : 's'}` : '';
+    }
+    let saveDraftTimeout = null;
+    function saveDraft() {
+      statusEl.textContent = 'Unsaved changes';
+      clearTimeout(saveDraftTimeout);
+      saveDraftTimeout = setTimeout(() => {
+        if (textarea.value.trim()) {
+          Data.setJournalDraft({ prompt: selectedPrompt, text: textarea.value, mood: selectedMood });
+          statusEl.textContent = 'Draft saved';
+        } else {
+          Data.clearJournalDraft();
+          statusEl.textContent = '';
+        }
+      }, 500);
+    }
+    textarea.addEventListener('input', () => { autoGrow(); updateWordCount(); saveDraft(); });
+    autoGrow();
+    updateWordCount();
+    if (draft.text) statusEl.textContent = 'Draft saved';
+
     const promptsWrap = box.querySelector('#jc-prompts');
-    prompts.forEach((p) => {
+    JOURNAL_PROMPTS.forEach((p) => {
       const chip = document.createElement('button');
       chip.className = 'prompt-chip';
       chip.textContent = p;
       chip.style.cursor = 'pointer';
       chip.style.border = 'none';
-      if (p === selectedPrompt) { chip.style.background = 'rgba(52,224,214,0.14)'; chip.style.color = 'var(--cyan)'; }
-      chip.addEventListener('click', () => { selectedPrompt = p; showComposer(p); box.querySelector('#jc-text').focus(); });
+      if (p === selectedPrompt) { chip.style.background = 'rgba(52,224,214,0.16)'; chip.style.color = 'var(--cyan)'; }
+      chip.addEventListener('click', () => {
+        selectedPrompt = selectedPrompt === p ? null : p;
+        promptsWrap.querySelectorAll('.prompt-chip').forEach((c) => { c.style.background = ''; c.style.color = ''; });
+        if (selectedPrompt) { chip.style.background = 'rgba(52,224,214,0.16)'; chip.style.color = 'var(--cyan)'; }
+        textarea.focus();
+        saveDraft();
+      });
       promptsWrap.appendChild(chip);
     });
+
+    const moodsWrap = box.querySelector('#jc-moods');
+    JOURNAL_MOODS.forEach((m) => {
+      const chip = document.createElement('button');
+      chip.className = 'choice-pill';
+      chip.style.fontSize = '12px';
+      chip.textContent = `${m.emoji} ${m.label}`;
+      if (m.v === selectedMood) chip.classList.add('selected');
+      chip.addEventListener('click', () => {
+        selectedMood = selectedMood === m.v ? null : m.v;
+        moodsWrap.querySelectorAll('.choice-pill').forEach((c) => c.classList.remove('selected'));
+        if (selectedMood) chip.classList.add('selected');
+        saveDraft();
+      });
+      moodsWrap.appendChild(chip);
+    });
+
     box.querySelector('#jc-save').addEventListener('click', () => {
-      const text = box.querySelector('#jc-text').value.trim();
+      const text = textarea.value.trim();
       if (!text) { App.toast('Write something first, or tap a prompt for ideas.'); return; }
-      Data.addJournalEntry(selectedPrompt || 'Free write', text);
+      Data.addJournalEntry(selectedPrompt || 'Free write', text, selectedMood);
+      Data.clearJournalDraft();
+      if (window.Analytics) Analytics.logEvent('journal_entry_saved');
       App.toast('Entry saved');
       App.refreshTab('journal');
     });
   }
-  showComposer(opts.openWrite ? null : null);
+  showComposer();
 
-  // Past entries live in their own small scrolling region (.inner-scroll)
-  // instead of scrolling the page — the composer above and the tab bar
-  // below always stay put, even if there are many entries.
-  const entriesWrap = wrap.querySelector('#journal-entries');
-  if (!entries.length) {
-    entriesWrap.appendChild(fmt(`<div class="empty-state"><div class="big" style="color:var(--text-3);width:32px;height:32px;margin:0 auto var(--space-2);">${NavIcons.journal}</div>Nothing written yet. Whatever's on your mind is welcome here.</div>`));
-  } else {
-    const card = fmt(`<div class="card" style="padding:var(--space-1) var(--space-3);"></div>`);
-    entries.forEach((e) => {
+  /* ---------------- Entries list (search/filter/group) ---------------- */
+  function matchesFilters(e) {
+    if (searchQuery && !(e.text || '').toLowerCase().includes(searchQuery.toLowerCase()) && !(e.prompt || '').toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (filterMood && e.mood !== filterMood) return false;
+    if (filterRange !== 'all') {
       const d = new Date(e.date);
-      const row = fmt(`
-        <div class="entry-card card-tap">
-          <div class="entry-date">${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</div>
-          <div class="entry-prompt">${escapeHtml(e.prompt)}</div>
-          <div class="entry-text clamp">${escapeHtml(e.text)}</div>
+      const now = new Date();
+      const days = (now - d) / (1000 * 60 * 60 * 24);
+      if (filterRange === 'today' && d.toDateString() !== now.toDateString()) return false;
+      if (filterRange === 'week' && days > 7) return false;
+      if (filterRange === 'month' && days > 30) return false;
+    }
+    return true;
+  }
+
+  function renderSearchBar() {
+    const bar = wrap.querySelector('#journal-search-bar');
+    bar.innerHTML = '';
+    const el = fmt(`
+      <div>
+        <div class="auth-input-wrap" style="margin-bottom:8px;">
+          <span class="auth-input-icon">${NavIcons.search}</span>
+          <input type="text" id="j-search" class="auth-input" placeholder="Search your entries" />
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="choice-pill" data-r="all" style="font-size:11px;">All</button>
+          <button class="choice-pill" data-r="today" style="font-size:11px;">Today</button>
+          <button class="choice-pill" data-r="week" style="font-size:11px;">This week</button>
+          <button class="choice-pill" data-r="month" style="font-size:11px;">This month</button>
+        </div>
+      </div>
+    `);
+    bar.appendChild(el);
+    el.querySelectorAll('[data-r]').forEach((btn) => {
+      if (btn.getAttribute('data-r') === filterRange) btn.classList.add('selected');
+      btn.addEventListener('click', () => { filterRange = btn.getAttribute('data-r'); renderEntries(); renderSearchBar(); });
+    });
+    el.querySelector('#j-search').value = searchQuery;
+    el.querySelector('#j-search').addEventListener('input', (e) => { searchQuery = e.target.value; renderEntries(); });
+  }
+
+  function renderEntries() {
+    const entriesWrap = wrap.querySelector('#journal-entries');
+    entriesWrap.innerHTML = '';
+    const all = Data.getJournalEntries();
+    wrap.querySelector('#journal-meta').textContent = all.length
+      ? `${all.length} entr${all.length === 1 ? 'y' : 'ies'}${Data.getJournalWritingStreak() >= 2 ? ` \u00b7 ${Data.getJournalWritingStreak()}-day streak` : ''}`
+      : '';
+
+    if (!all.length) {
+      entriesWrap.appendChild(fmt(`
+        <div class="empty-state">
+          <div class="big" style="color:var(--text-3);width:32px;height:32px;margin:0 auto var(--space-2);">${NavIcons.journal}</div>
+          Nothing written yet.<br/>Whatever's on your mind is welcome here.
+        </div>
+      `));
+      return;
+    }
+
+    const filtered = all.filter(matchesFilters);
+    if (!filtered.length) {
+      entriesWrap.appendChild(fmt(`<div class="empty-state">No entries match. Try a different search or filter.</div>`));
+      return;
+    }
+
+    // Reflection insights — only appears once there's enough real data to
+    // say something honest (see getJournalInsights' own sample-size gate).
+    const insights = Data.getJournalInsights();
+    if (insights.length && !searchQuery && filterRange === 'all' && !filterMood) {
+      const insightCard = fmt(`
+        <div class="card" style="margin-bottom:var(--space-3);">
+          <p class="section-title" style="margin-top:0;">Reflection insights</p>
+          ${insights.map((t) => `<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;"><div style="width:5px;height:5px;border-radius:50%;background:var(--cyan);margin-top:6px;flex-shrink:0;"></div><div style="color:var(--text-1);font-size:12.5px;line-height:1.4;">${escapeHtml(t)}</div></div>`).join('')}
+          <div style="color:var(--text-3);font-size:10px;margin-top:2px;">Based only on your own entries, on this device. Not a diagnosis \u2014 just a pattern.</div>
         </div>
       `);
-      row.addEventListener('click', () => row.querySelector('.entry-text').classList.toggle('clamp'));
-      card.appendChild(row);
+      entriesWrap.appendChild(insightCard);
+    }
+
+    let lastGroup = null;
+    filtered.forEach((e) => {
+      const group = journalGroupLabel(e.date);
+      if (group !== lastGroup) {
+        entriesWrap.appendChild(fmt(`<div style="color:var(--text-3);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;margin:var(--space-3) 0 6px;">${group}</div>`));
+        lastGroup = group;
+      }
+      const d = new Date(e.date);
+      const words = (e.text || '').trim().split(/\s+/).filter(Boolean).length;
+      const mood = journalMoodMeta(e.mood);
+      const row = fmt(`
+        <div class="card card-tap" style="margin-bottom:8px;padding:var(--space-3);">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div class="entry-prompt" style="margin-bottom:2px;">${escapeHtml(e.prompt || 'Free write')}</div>
+            ${mood ? `<span style="font-size:14px;">${mood.emoji}</span>` : ''}
+          </div>
+          <div class="entry-text clamp" style="margin-top:2px;">${escapeHtml(e.text)}</div>
+          <div style="color:var(--text-3);font-size:10.5px;margin-top:6px;">${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} \u00b7 ${words} word${words === 1 ? '' : 's'}</div>
+        </div>
+      `);
+      row.addEventListener('click', () => renderEntryDetail(e));
+      entriesWrap.appendChild(row);
     });
-    entriesWrap.appendChild(card);
+  }
+
+  renderSearchBar();
+  renderEntries();
+
+  /* ---------------- Entry detail (view/edit/delete) ---------------- */
+  function renderEntryDetail(entry) {
+    const d = new Date(entry.date);
+    const mood = journalMoodMeta(entry.mood);
+    const overlay = fmt(`
+      <div class="activity-screen fade-in" style="z-index:600;">
+        <div class="activity-header">
+          <div class="title">${journalGroupLabel(entry.date)}</div>
+          <button class="icon-btn" id="jd-close" aria-label="Close">\u2715</button>
+        </div>
+        <div class="screen-scroll" style="padding-top:var(--space-3);">
+          <div style="color:var(--text-2);font-size:11.5px;margin-bottom:var(--space-2);">
+            ${d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} \u00b7 ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+            ${mood ? ` \u00b7 ${mood.emoji} ${mood.label}` : ''}
+          </div>
+          <div class="entry-prompt" style="font-size:13px;margin-bottom:8px;">${escapeHtml(entry.prompt || 'Free write')}</div>
+          <textarea class="journal-input" id="jd-text" style="width:100%;min-height:180px;font-size:14px;padding:var(--space-3);" readonly>${escapeHtml(entry.text)}</textarea>
+          <div style="display:flex;gap:10px;margin-top:var(--space-4);">
+            <button class="btn btn-secondary" style="flex:1;" id="jd-edit">Edit</button>
+            <button class="btn btn-ghost" style="flex:1;color:var(--coral);border-color:rgba(239,139,111,0.3);" id="jd-delete">Delete</button>
+          </div>
+        </div>
+      </div>
+    `);
+    document.body.appendChild(overlay);
+    overlay.querySelector('#jd-close').addEventListener('click', () => overlay.remove());
+
+    overlay.querySelector('#jd-edit').addEventListener('click', () => {
+      const textarea = overlay.querySelector('#jd-text');
+      const editing = textarea.hasAttribute('readonly');
+      if (editing) {
+        textarea.removeAttribute('readonly');
+        textarea.focus();
+        overlay.querySelector('#jd-edit').textContent = 'Save changes';
+      } else {
+        Data.updateJournalEntry(entry.id, { text: textarea.value.trim() });
+        App.toast('Entry updated');
+        overlay.remove();
+        renderEntries();
+      }
+    });
+
+    overlay.querySelector('#jd-delete').addEventListener('click', () => {
+      const confirmWrap = fmt(`
+        <div class="popup-backdrop fade-in">
+          <div class="popup-card">
+            <div class="h1" style="font-size:16px;">Delete this journal entry?</div>
+            <div class="desc">This can't be undone.</div>
+            <div class="btn-row">
+              <button class="btn btn-ghost btn-block" id="jd-cancel">Cancel</button>
+              <button class="btn btn-block" id="jd-confirm" style="background:var(--coral);color:#2b0f08;">Delete</button>
+            </div>
+          </div>
+        </div>
+      `);
+      document.body.appendChild(confirmWrap);
+      confirmWrap.querySelector('#jd-cancel').addEventListener('click', () => confirmWrap.remove());
+      confirmWrap.querySelector('#jd-confirm').addEventListener('click', () => {
+        Data.deleteJournalEntry(entry.id);
+        confirmWrap.remove();
+        overlay.remove();
+        App.toast('Entry deleted');
+        renderEntries();
+      });
+    });
   }
 
   return wrap;
