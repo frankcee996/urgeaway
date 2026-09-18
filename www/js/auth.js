@@ -44,13 +44,33 @@ const Auth = (() => {
     });
   }
 
+  // The sign-in/sign-up calls below sometimes resolve without a fully
+  // populated user object even on real success (a known quirk of this
+  // plugin family) — trusting that value directly caused exactly the bug
+  // where the app says "Signed in" but currentUser stays empty and every
+  // screen keeps showing Guest. Refetching from getCurrentUser() right
+  // after is the authoritative check, so this is always used instead of
+  // whatever the sign-in call itself returned.
+  async function refreshCurrentUser() {
+    if (!available()) return null;
+    const { FirebaseAuthentication } = window.CapAuth;
+    try {
+      const { user } = await FirebaseAuthentication.getCurrentUser();
+      currentUser = user || null;
+    } catch (e) {
+      currentUser = null;
+    }
+    notify();
+    return currentUser;
+  }
+
   async function signUpEmail(email, password) {
     if (!available()) return { ok: false, reason: 'unsupported' };
     const { FirebaseAuthentication } = window.CapAuth;
     try {
-      const res = await FirebaseAuthentication.createUserWithEmailAndPassword({ email, password });
-      currentUser = res.user;
-      notify();
+      await FirebaseAuthentication.createUserWithEmailAndPassword({ email, password });
+      await refreshCurrentUser();
+      if (!currentUser) return { ok: false, reason: 'error', message: 'Account created, but signing in didn\u2019t fully complete \u2014 try signing in again.' };
       return { ok: true };
     } catch (e) {
       return { ok: false, reason: 'error', message: friendlyError(e) };
@@ -61,9 +81,9 @@ const Auth = (() => {
     if (!available()) return { ok: false, reason: 'unsupported' };
     const { FirebaseAuthentication } = window.CapAuth;
     try {
-      const res = await FirebaseAuthentication.signInWithEmailAndPassword({ email, password });
-      currentUser = res.user;
-      notify();
+      await FirebaseAuthentication.signInWithEmailAndPassword({ email, password });
+      await refreshCurrentUser();
+      if (!currentUser) return { ok: false, reason: 'error', message: 'Signed in, but couldn\u2019t confirm the account \u2014 try again.' };
       return { ok: true };
     } catch (e) {
       return { ok: false, reason: 'error', message: friendlyError(e) };

@@ -17,9 +17,12 @@ const AuthIcons = {
 
 // Asked once, right after registering — never blocks anything, "Skip" moves
 // on immediately, and it's silently bypassed if a name is already set (e.g.
-// someone signs up again on a second device).
+// someone signs up again on a second device). Also bypassed entirely when
+// onboarding hasn't run yet (fresh install signing up via the first-launch
+// Login Gate) — onboarding's own profile step asks for first/last name
+// right after this, so asking here too would mean typing a name twice.
 function maybeAskForUsername(container, onDone) {
-  if (Data.getProfileName()) { onDone(); return; }
+  if (Data.getProfileName() || !Data.isOnboarded()) { onDone(); return; }
   container.innerHTML = '';
   const wrap = fmt(`
     <div class="fade-in" style="display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;max-width:290px;margin:0 auto;">
