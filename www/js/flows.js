@@ -382,18 +382,37 @@ function renderUrgeRescueRunner(meta) {
   const MIN_DURATION_MS = 6 * 60 * 1000;
   const sequenceStartedAt = Date.now();
 
-  const baseQueue = [
-    { id: 'breathing', run: (c, done) => runBreathing(c, done) },
+  // Slot 1 (breathing) is always first and fixed. Slots 2-4 are filled by
+  // shuffling 3 distinct games out of this pool each time the flow runs —
+  // old games plus the new premium ones, all tuned to run ~90-120s each
+  // with progress indicators hidden (see each game's hideProgress opt).
+  const GAME_POOL = [
     { id: 'gridmemory', run: (c, done) => runGridMemory(c, done, { rounds: 6, hideProgress: true }) },
     { id: 'movingtarget', run: (c, done) => runMovingTarget(c, done, { totalTaps: 30, hideProgress: true }) },
     { id: 'colortap', run: (c, done) => runColorTap(c, done, { rounds: 20, hideProgress: true }) },
+    { id: 'impossiblechoice', run: (c, done) => runImpossibleChoice(c, done, { rounds: 9, hideProgress: true }) },
+    { id: 'wordscramble', run: (c, done) => runWordScramble(c, done, { rounds: 8, hideProgress: true }) },
+    { id: 'mentalrotation', run: (c, done) => runMentalRotation(c, done, { rounds: 6, hideProgress: true }) },
+    { id: 'visualsudoku', run: (c, done) => runVisualSudoku(c, done, { rounds: 2, hideProgress: true }) },
+    { id: 'logicdetective', run: (c, done) => runLogicDetective(c, done, { rounds: 4, hideProgress: true }) },
+    { id: 'pathfinder', run: (c, done) => runPathFinder(c, done, { rounds: 3, hideProgress: true }) },
   ];
-  // Only ever appended if the base sequence finishes under the floor —
-  // see runNext() below.
-  const topUpQueue = [
+  const TOPUP_POOL = [
+    { id: 'gridmemory', run: (c, done) => runGridMemory(c, done, { rounds: 3, hideProgress: true }) },
     { id: 'movingtarget', run: (c, done) => runMovingTarget(c, done, { totalTaps: 16, hideProgress: true }) },
     { id: 'colortap', run: (c, done) => runColorTap(c, done, { rounds: 10, hideProgress: true }) },
-    { id: 'gridmemory', run: (c, done) => runGridMemory(c, done, { rounds: 3, hideProgress: true }) },
+    { id: 'impossiblechoice', run: (c, done) => runImpossibleChoice(c, done, { rounds: 4, hideProgress: true }) },
+    { id: 'wordscramble', run: (c, done) => runWordScramble(c, done, { rounds: 4, hideProgress: true }) },
+    { id: 'mentalrotation', run: (c, done) => runMentalRotation(c, done, { rounds: 3, hideProgress: true }) },
+    { id: 'visualsudoku', run: (c, done) => runVisualSudoku(c, done, { rounds: 1, hideProgress: true }) },
+    { id: 'logicdetective', run: (c, done) => runLogicDetective(c, done, { rounds: 2, hideProgress: true }) },
+    { id: 'pathfinder', run: (c, done) => runPathFinder(c, done, { rounds: 1, hideProgress: true }) },
+  ];
+  function pickTopUp() { return [pick(TOPUP_POOL), pick(TOPUP_POOL), pick(TOPUP_POOL)]; }
+
+  const baseQueue = [
+    { id: 'breathing', run: (c, done) => runBreathing(c, done) },
+    ...pickN(GAME_POOL, 3),
   ];
   let queue = baseQueue.slice();
   let qi = 0;
@@ -418,7 +437,7 @@ function renderUrgeRescueRunner(meta) {
   function runNext() {
     if (qi >= queue.length) {
       if (Date.now() - sequenceStartedAt < MIN_DURATION_MS) {
-        queue = queue.concat(topUpQueue);
+        queue = queue.concat(pickTopUp());
       } else {
         showOutcome();
         return;
@@ -474,7 +493,7 @@ function renderUrgeRescueRunner(meta) {
         if (window.Analytics) Analytics.logUrgeSessionCompleted();
         if (outcome === 'still_having_urge') {
           App.toast('Okay \u2014 let\u2019s try a bit more.');
-          queue = queue.concat(topUpQueue);
+          queue = queue.concat(pickTopUp());
           runNext();
         } else {
           App.closeOverlay();
